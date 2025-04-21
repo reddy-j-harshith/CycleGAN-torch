@@ -102,6 +102,8 @@ class Generator(nn.Module):
             nn.Tanh(),
         ]
 
+        self.model = nn.Sequential(*model)
+
     def forward(self, x):
         return self.model(x)
         
@@ -113,4 +115,31 @@ class Discriminator(nn.Module):
 
         channels, height, width = input_shape
 
+        self.output_shape = (1, height // 2 ** 4, width // 2 ** 4)   
+
+        def discriminator_block(in_channels, out_channels, normalize = True):
+            layers = [
+                nn.Conv2d(
+                    in_channels = in_channels,
+                    out_channels = out_channels,
+                    kernel_size = 4,
+                    stride = 2,
+                    padding = 1
+                )
+            ]
+            if normalize:
+                layers.append(nn.InstanceNorm2d(out_channels))
+            layers.append(nn.LeakyReLU(0.2, inplace = True))
+            return layers
         
+        self.model = nn.Sequential(
+            *discriminator_block(channels, out_channels = 64, normalize = False),
+            *discriminator_block(64, out_channels = 128),
+            *discriminator_block(128, out_channels = 256),
+            *discriminator_block(256, out_channels = 512),
+            nn.ZeroPad2d((1, 0, 1, 0)),
+            nn.Conv2d(in_channels = 512, out_channels = 1, kernel_size = 4, padding = 1)
+        )
+
+    def forward(self, img):
+        return self.model(img)
