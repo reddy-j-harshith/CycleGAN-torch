@@ -3,6 +3,8 @@ import itertools
 import time
 import datetime
 import tqdm
+import json
+import os
 
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
@@ -11,8 +13,7 @@ from torchvision.utils import make_grid
 import torch.nn.functional as F
 import torch
 
-from matplotlib.pyplot import figure
-
+import matplotlib.pyplot as plt
 from PIL import Image
 import matplotlib.image as mping
 
@@ -67,7 +68,9 @@ def to_img(x):
 
 def plot_output(path, x, y):
     img = mping.imread(path)
-    plt.figure(figsize = (x, y))
+    plt.figure(figsize=(x, y))
+    plt.imshow(img)
+    plt.axis('off')
     plt.show()
 
 transforms_ = [
@@ -192,29 +195,42 @@ lr_scheduler_Disc_B = torch.optim.lr_scheduler.LambdaLR(
     lr_lambda = LambdaLR(hyper.n_epochs, hyper.epoch, hyper.decay_start_epoch).step,
 )
 
+# Function to load existing JSON logs or initialize a new list
+def load_json_logs(json_path):
+    if os.path.exists(json_path):
+        with open(json_path, 'r') as f:
+            return json.load(f)
+    return []
+
+# Function to save logs to JSON
+def save_json_logs(json_path, logs):
+    with open(json_path, 'w') as f:
+        json.dump(logs, f, indent=4)
+
 # FINAL TRAINING FUNCTION
 
 def train(
-    Gen_AB:             Generator,
-    Gen_BA:             Generator,
-    Disc_A:             Discriminator,
-    Disc_B:             Discriminator,
-    train_dataloader:   DataLoader,
-    n_epochs:           int,
-    identity_loss:           torch.nn.L1Loss,
-    cycle_loss:              torch.nn.L1Loss,
-    GAN_loss:                torch.nn.MSELoss,
-    lamdba_cyc:         float,
-    lambda_id:          float,
-    fake_A_Buffer:      ReplayBuffer,
-    fake_B_Buffer:      ReplayBuffer,
-    optimizer_G:        torch.optim.Adam,
-    optimizer_Disc_A:   torch.optim.Adam,
-    optimizer_Disc_B:   torch.optim.Adam,
-    sample_interval:    int,
+    Gen_AB: Generator,
+    Gen_BA: Generator,
+    Disc_A: Discriminator,
+    Disc_B: Discriminator,
+    train_dataloader: DataLoader,
+    n_epochs: int,
+    identity_loss: torch.nn.L1Loss,
+    cycle_loss: torch.nn.L1Loss,
+    GAN_loss: torch.nn.MSELoss,
+    lambda_cyc: float,
+    lambda_id: float,
+    fake_A_Buffer: ReplayBuffer,
+    fake_B_Buffer: ReplayBuffer,
+    optimizer_G: torch.optim.Adam,
+    optimizer_Disc_A: torch.optim.Adam,
+    optimizer_Disc_B: torch.optim.Adam,
+    sample_interval: int,
 ):
-    
     prev_time = time.time()
+    json_path = "./training_logs.json"
+    training_logs = load_json_logs(json_path)  # Load existing logs or initialize empty list
 
     for epoch in range(hyper.epoch, n_epochs):
         for i, batch in enumerate(train_dataloader):
@@ -263,7 +279,7 @@ def train(
 
             loss_cycle = (loss_cycle_A + loss_cycle_B) / 2
 
-            loss_G = loss_GAN + lamdba_cyc * loss_cycle + lambda_id * loss_identity
+            loss_G = loss_GAN + lambda_cyc * loss_cycle + lambda_id * loss_identity
             loss_G.backward()
 
             optimizer_G.step()
@@ -300,18 +316,32 @@ def train(
 
             loss_D = (loss_Disc_A + loss_Disc_B) / 2
 
+            # Log metrics
+            batches_done = epoch * len(train_dataloader) + i
+            batches_left = n_epochs * len(train_dataloader) - batches_done
+            time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
+
+            log_entry = {
+                "epoch": epoch,
+                "batch": i,
+                "batches_done": batches_done,
+                "D_loss": loss_D.item(),
+                "G_loss": loss_G.item(),
+                "GAN_loss": loss_GAN.item(),
+                "cycle_loss": loss_cycle.item(),
+                "identity_loss": loss_identity.item(),
+                "ETA": str(time_left)
+            }
+            training_logs.append(log_entry)
+
+            # Save logs periodically (e.g., every 100 batches)
+            if batches_done % 100 == 0:
+                save_json_logs(json_path, training_logs)
+
             lr_scheduler_G.step()
             lr_scheduler_Disc_A.step()
             lr_scheduler_Disc_B.step()
-            
-            # Determine approximate time left
-            batches_done = epoch * len(train_dataloader) + i
 
-            batches_left = n_epochs * len(train_dataloader) - batches_done
-
-            time_left = datetime.timedelta(
-                seconds=batches_left * (time.time() - prev_time)
-            )
             prev_time = time.time()
 
             print(
@@ -331,33 +361,37 @@ def train(
             )
 
             if epoch % 10 == 0:  # Save every 10 epochs
-                torch.save(Gen_AB.state_dict(), f"./checkpoints/epoch{epoch}/Gen_AB_epoch_{epoch}.pth")
-                torch.save(Gen_BA.state_dict(), f"./checkpoints/epoch{epoch}/Gen_BA_epoch_{epoch}.pth")
-                torch.save(Disc_A.state_dict(), f"./checkpoints/epoch{epoch}/Disc_A_epoch_{epoch}.pth")
-                torch.save(Disc_B.state_dict(), f"./checkpoints/epoch{epoch}/Disc_B_epoch_{epoch}.pth")
+                checkpoint_dir = f"./checkpoints/epoch{epoch}"
+                os.makedirs(checkpoint_dir, exist_ok=True)
+                torch.save(Gen_AB.state_dict(), f"{checkpoint_dir}/Gen_AB_epoch_{epoch}.pth")
+                torch.save(Gen_BA.state_dict(), f"{checkpoint_dir}/Gen_BA_epoch_{epoch}.pth")
+                torch.save(Disc_A.state_dict(), f"{checkpoint_dir}/Disc_A_epoch_{epoch}.pth")
+                torch.save(Disc_B.state_dict(), f"{checkpoint_dir}/Disc_B_epoch_{epoch}.pth")
 
             # If at sample interval save image
             if batches_done % sample_interval == 0:
                 plot_output(save_img_samples(batches_done), 30, 40)
 
+        # Save logs at the end of each epoch
+        save_json_logs(json_path, training_logs)
 
-if __name__ == '__main__':   
+if __name__ == '__main__':
     train(
-        Gen_AB =            Gen_AB,
-        Gen_BA =            Gen_BA,
-        Disc_A =            Disc_A,
-        Disc_B =            Disc_B,
-        train_dataloader =  train_loader,
-        n_epochs =          hyper.n_epochs,
-        identity_loss =     identity_loss,
-        cycle_loss =        cycle_loss,
-        GAN_loss =          GAN_loss,
-        lamdba_cyc =        hyper.lambda_cyc,
-        lambda_id =         hyper.lambda_id,
-        fake_A_Buffer =     fake_A_buffer,
-        fake_B_Buffer =     fake_B_buffer,
-        optimizer_G =       optimizer_G,
-        optimizer_Disc_A =  optimizer_Disc_A,
-        optimizer_Disc_B =  optimizer_Disc_B,
-        sample_interval =   hyper.sample_interval   
+        Gen_AB=Gen_AB,
+        Gen_BA=Gen_BA,
+        Disc_A=Disc_A,
+        Disc_B=Disc_B,
+        train_dataloader=train_loader,
+        n_epochs=hyper.n_epochs,
+        identity_loss=identity_loss,
+        cycle_loss=cycle_loss,
+        GAN_loss=GAN_loss,
+        lambda_cyc=hyper.lambda_cyc,
+        lambda_id=hyper.lambda_id,
+        fake_A_Buffer=fake_A_buffer,
+        fake_B_Buffer=fake_B_buffer,
+        optimizer_G=optimizer_G,
+        optimizer_Disc_A=optimizer_Disc_A,
+        optimizer_Disc_B=optimizer_Disc_B,
+        sample_interval=hyper.sample_interval
     )
