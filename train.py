@@ -42,8 +42,8 @@ hyper = Hyperparameters(
     channels = 3,
     sample_interval = 100,
     num_resi_blocks = 9,
-    lambda_cyc = 10.0,
-    lambda_id = 5.0
+    lambda_cyc = 15.0,
+    lambda_id = 10.0
 )
 
 # file_path = "./datasets/summer2winter"
@@ -229,7 +229,7 @@ def train(
     sample_interval: int,
 ):
     prev_time = time.time()
-    json_path = "./training_logs.json"
+    json_path = "./checkpoints/training_logs.json"
     training_logs = load_json_logs(json_path)  # Load existing logs or initialize empty list
 
     for epoch in range(hyper.epoch, n_epochs):
@@ -338,10 +338,6 @@ def train(
             if batches_done % 100 == 0:
                 save_json_logs(json_path, training_logs)
 
-            lr_scheduler_G.step()
-            lr_scheduler_Disc_A.step()
-            lr_scheduler_Disc_B.step()
-
             prev_time = time.time()
 
             print(
@@ -360,32 +356,36 @@ def train(
                 )
             )
 
-            if epoch % 10 == 0:  # Save every 10 epochs
-                checkpoint_dir = f"./checkpoints/epoch{epoch}"
-                os.makedirs(checkpoint_dir, exist_ok=True)
-                torch.save(Gen_AB.state_dict(), f"{checkpoint_dir}/Gen_AB_epoch_{epoch}.pth")
-                torch.save(Gen_BA.state_dict(), f"{checkpoint_dir}/Gen_BA_epoch_{epoch}.pth")
-                torch.save(Disc_A.state_dict(), f"{checkpoint_dir}/Disc_A_epoch_{epoch}.pth")
-                torch.save(Disc_B.state_dict(), f"{checkpoint_dir}/Disc_B_epoch_{epoch}.pth")
 
             # If at sample interval save image
             if batches_done % sample_interval == 0:
-                plot_output(save_img_samples(batches_done), 30, 40)
+                save_img_samples(batches_done)
+   
+        checkpoint_dir = f"./checkpoints/epoch{epoch}"
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        torch.save(Gen_AB.state_dict(), f"{checkpoint_dir}/Gen_AB_epoch_{epoch}.pth")
+        torch.save(Gen_BA.state_dict(), f"{checkpoint_dir}/Gen_BA_epoch_{epoch}.pth")
+        torch.save(Disc_A.state_dict(), f"{checkpoint_dir}/Disc_A_epoch_{epoch}.pth")
+        torch.save(Disc_B.state_dict(), f"{checkpoint_dir}/Disc_B_epoch_{epoch}.pth")
+
+        lr_scheduler_G.step()
+        lr_scheduler_Disc_A.step()
+        lr_scheduler_Disc_B.step()
 
         # Save logs at the end of each epoch
         save_json_logs(json_path, training_logs)
 
 if __name__ == '__main__':
     train(
-        Gen_AB=Gen_AB,
-        Gen_BA=Gen_BA,
-        Disc_A=Disc_A,
-        Disc_B=Disc_B,
-        train_dataloader=train_loader,
-        n_epochs=hyper.n_epochs,
-        identity_loss=identity_loss,
-        cycle_loss=cycle_loss,
-        GAN_loss=GAN_loss,
+        Gen_AB =            Gen_AB,
+        Gen_BA =            Gen_BA,
+        Disc_A =            Disc_A,
+        Disc_B =            Disc_B,
+        train_dataloader =  train_loader,
+        n_epochs =          hyper.n_epochs,
+        identity_loss =     identity_loss,
+        cycle_loss =        cycle_loss,
+        GAN_loss =          GAN_loss,
         lambda_cyc=hyper.lambda_cyc,
         lambda_id=hyper.lambda_id,
         fake_A_Buffer=fake_A_buffer,
