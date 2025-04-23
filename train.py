@@ -12,7 +12,6 @@ import torch.nn.functional as F
 import torch
 
 from matplotlib.pyplot import figure
-from IPython.display import clear_output
 
 from PIL import Image
 import matplotlib.image as mping
@@ -25,12 +24,13 @@ from kagglehub import KaggleDatasetAdapter
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 class Hyperparameters(object):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
 hyper = Hyperparameters(
-    epoch = 0,
+    epoch = 1,
     n_epochs = 200,
     dataset_train_mode = "train",
     dataset_test_mode = "test",
@@ -42,8 +42,7 @@ hyper = Hyperparameters(
     n_cpu = 8,
     img_size = 128,
     channels = 3,
-    n_critic = 5,
-    samples_interval = 100,
+    sample_interval = 100,
     num_resi_blocks = 9,
     lambda_cyc = 10.0,
     lambda_id = 5.0
@@ -81,25 +80,23 @@ transforms_ = [
 ]
 
 train_loader = DataLoader(
-    ImageDataset(root = file_path, mode = hyper.dataset_train_mode, transforms_ = transforms),
+    ImageDataset(root = file_path, mode = hyper.dataset_train_mode, transforms_ = transforms_, unaligned = True),
     batch_size = hyper.batch_size,
     shuffle = True,
-    num_workers = 1,
+    num_workers = 4,
 )
 
 val_loader = DataLoader(
-    ImageDataset(root = file_path, mode = hyper.dataset_test_mode, transforms_ = transforms),
+    ImageDataset(root = file_path, mode = hyper.dataset_test_mode, transforms_ = transforms_, unaligned = True),
     batch_size = 16,
     shuffle = True,
-    num_workers = 1,
+    num_workers = 4,
 )
 
 def save_img_samples(batches_done):
-
     print("batches_done ", batches_done)
     imgs = next(iter(val_loader))
 
-    # There is no gradient calculation, so they are set to 'eval' mode.
     Gen_AB.eval()
     Gen_BA.eval()
 
@@ -109,16 +106,18 @@ def save_img_samples(batches_done):
     real_B = imgs["B"].to(device)
     fake_A = Gen_BA(real_B)
 
-    real_A = make_grid(real_A, nrow = 16, normalize = True)
-    real_B = make_grid(real_B, nrow = 16, normalize = True)
-    fake_A = make_grid(fake_A, nrow = 16, normalize = True)
-    fake_B = make_grid(fake_A, nrow = 16, normalize = True)
+    real_A = make_grid(real_A, nrow=16, normalize=True)
+    real_B = make_grid(real_B, nrow=16, normalize=True)
+    fake_A = make_grid(fake_A, nrow=16, normalize=True)
+    fake_B = make_grid(fake_B, nrow=16, normalize=True)
 
     image_grid = torch.cat((real_A, fake_B, real_B, fake_A), 1)
 
-    path = file_path + "/%s.png" % (batches_done)
+    output_dir = "./output_images"
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, f"{batches_done}.png")
 
-    save_image(image_grid, path, normalize = False)
+    save_image(image_grid, path, normalize=False)
     return path
 
 # normal GAN Loss
@@ -174,7 +173,7 @@ optimizer_Disc_A = torch.optim.Adam(
 )
 
 optimizer_Disc_B = torch.optim.Adam(
-    Disc_B.paramters(),
+    Disc_B.parameters(),
     lr = hyper.lr,
     betas = (hyper.b1, hyper.b2)
 )
@@ -212,18 +211,16 @@ def train(
     lambda_id:          float,
     fake_A_Buffer:      ReplayBuffer,
     fake_B_Buffer:      ReplayBuffer,
-    clear_output,
     optimizer_G:        torch.optim.Adam,
     optimizer_Disc_A:   torch.optim.Adam,
     optimizer_Disc_B:   torch.optim.Adam,
-    Tensor:             torch.Tensor,
     sample_interval:    int,
 ):
     
     prev_time = time.time()
 
     for epoch in range(hyper.epoch, n_epochs):
-        for i, batch in enumerate(tqdm(train_dataloader, desc = "epoch")):
+        for i, batch in enumerate(train_dataloader):
 
             # Set model input
             real_A = batch["A"].to(device)
@@ -303,3 +300,67 @@ def train(
 
             loss_Disc_B.backward()
             optimizer_Disc_B.step()
+
+            loss_D = (loss_Disc_A + loss_Disc_B) / 2
+
+            lr_scheduler_G.step()
+            lr_scheduler_Disc_A.step()
+            lr_scheduler_Disc_B.step()
+            
+            # Determine approximate time left
+            batches_done = epoch * len(train_dataloader) + i
+
+            batches_left = n_epochs * len(train_dataloader) - batches_done
+
+            time_left = datetime.timedelta(
+                seconds=batches_left * (time.time() - prev_time)
+            )
+            prev_time = time.time()
+
+            print(
+                "\r[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f, adv: %f, cycle: %f, identity: %f] ETA: %s"
+                % (
+                    epoch,
+                    n_epochs,
+                    i,
+                    len(train_dataloader),
+                    loss_D.item(),
+                    loss_G.item(),
+                    loss_GAN.item(),
+                    loss_cycle.item(),
+                    loss_identity.item(),
+                    time_left,
+                )
+            )
+
+            if epoch % 10 == 0:  # Save every 10 epochs
+                torch.save(Gen_AB.state_dict(), f"./checkpoints/epoch{epoch}/Gen_AB_epoch_{epoch}.pth")
+                torch.save(Gen_BA.state_dict(), f"./checkpoints/epoch{epoch}/Gen_BA_epoch_{epoch}.pth")
+                torch.save(Disc_A.state_dict(), f"./checkpoints/epoch{epoch}/Disc_A_epoch_{epoch}.pth")
+                torch.save(Disc_B.state_dict(), f"./checkpoints/epoch{epoch}/Disc_B_epoch_{epoch}.pth")
+
+            # If at sample interval save image
+            if batches_done % sample_interval == 0:
+                plot_output(save_img_samples(batches_done), 30, 40)
+
+
+if __name__ == '__main__':   
+    train(
+        Gen_AB =            Gen_AB,
+        Gen_BA =            Gen_BA,
+        Disc_A =            Disc_A,
+        Disc_B =            Disc_B,
+        train_dataloader =  train_loader,
+        n_epochs =          hyper.n_epochs,
+        identity_loss =     identity_loss,
+        cycle_loss =        cycle_loss,
+        GAN_loss =          GAN_loss,
+        lamdba_cyc =        hyper.lambda_cyc,
+        lambda_id =         hyper.lambda_id,
+        fake_A_Buffer =     fake_A_buffer,
+        fake_B_Buffer =     fake_B_buffer,
+        optimizer_G =       optimizer_G,
+        optimizer_Disc_A =  optimizer_Disc_A,
+        optimizer_Disc_B =  optimizer_Disc_B,
+        sample_interval =   hyper.sample_interval   
+    )

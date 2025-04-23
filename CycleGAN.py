@@ -3,7 +3,6 @@ import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure
-from IPython.display import clear_output
 
 from torch.utils.data import Dataset
 
@@ -95,8 +94,8 @@ class Generator(nn.Module):
         model += [
             nn.ReflectionPad2d(channels),
             nn.Conv2d(
-                out_channels = out_channels,
-                in_channels = channels,
+                in_channels = out_channels,
+                out_channels = channels,
                 kernel_size = 7
             ),
             nn.Tanh(),

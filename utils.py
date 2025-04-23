@@ -18,26 +18,37 @@ def convert_to_rgb(image):
     return rgb_image
 
 class ImageDataset(Dataset):
-    def __init__(self, root, transforms_ = None, unaligned = False, mode = "train"):
+    def __init__(self, root, transforms_=None, unaligned=False, mode="train"):
         self.transform = transforms.Compose(transforms_)
         self.unaligned = unaligned
 
-        self.files_A = sorted(glob.glob(os.path.join(root, "%sA" % mode) + "/*.*"))
-        self.files_B = sorted(glob.glob(os.path.join(root, "%sB" % mode) + "/*.*"))
+        # Load file lists
+        self.files_A = sorted(glob.glob(os.path.join(root, f"{mode}A") + "/*.*"))
+        self.files_B = sorted(glob.glob(os.path.join(root, f"{mode}B") + "/*.*"))
+
+        # Check if directories contain images
+        if not self.files_A:
+            raise ValueError(f"No images found in {os.path.join(root, f'{mode}A')}. Please check the dataset directory.")
+        if not self.files_B:
+            raise ValueError(f"No images found in {os.path.join(root, f'{mode}B')}. Please check the dataset directory.")
 
     def __getitem__(self, index):
-        image_A = Image.open(self.files_A[index % len(self.files_A)]) 
+        # Load image from domain A
+        image_A = Image.open(self.files_A[index % len(self.files_A)])
 
+        # Load image from domain B (unaligned or aligned)
         if self.unaligned:
-            image_B = Image.open(self.files_B[index % random.randint(0, len(self.files_B) - 1)])
+            image_B = Image.open(self.files_B[random.randint(0, len(self.files_B) - 1)])
         else:
-            image_B = Image.open(self.files_B[index % len(self.files_A)])
+            image_B = Image.open(self.files_B[index % len(self.files_B)])
 
+        # Convert to RGB if needed
         if image_A.mode != "RGB":
             image_A = convert_to_rgb(image_A)
-        else:
+        if image_B.mode != "RGB":
             image_B = convert_to_rgb(image_B)
 
+        # Apply transformations
         item_A = self.transform(image_A)
         item_B = self.transform(image_B)
 
