@@ -2,7 +2,6 @@ import os
 import numpy as np
 
 import torchvision.transforms as transforms
-from torch.autograd import Variable
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -69,7 +68,7 @@ class ReplayBuffer:
                 # returns an older generated image
                 else:
                     to_return.append(element)
-        return Variable(torch.cat(to_return))
+        return torch.cat(to_return)
 
 class LambdaLR:
     def __init__(self, n_epochs, offset, decay_start_epoch):
