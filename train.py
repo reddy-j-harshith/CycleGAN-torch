@@ -19,9 +19,6 @@ import matplotlib.image as mping
 from utils import *
 from CycleGAN import *
 
-import kagglehub
-from kagglehub import KaggleDatasetAdapter
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -50,7 +47,7 @@ hyper = Hyperparameters(
 
 # file_path = "./datasets/summer2winter"
 
-file_path = kagglehub.dataset_download("balraj98/summer2winter-yosemite")
+file_path = "./datasets/summer2winter"
 
 print(file_path)
 
@@ -83,14 +80,14 @@ train_loader = DataLoader(
     ImageDataset(root = file_path, mode = hyper.dataset_train_mode, transforms_ = transforms_, unaligned = True),
     batch_size = hyper.batch_size,
     shuffle = True,
-    num_workers = 4,
+    num_workers = 2,
 )
 
 val_loader = DataLoader(
     ImageDataset(root = file_path, mode = hyper.dataset_test_mode, transforms_ = transforms_, unaligned = True),
     batch_size = 16,
     shuffle = True,
-    num_workers = 4,
+    num_workers = 2,
 )
 
 def save_img_samples(batches_done):

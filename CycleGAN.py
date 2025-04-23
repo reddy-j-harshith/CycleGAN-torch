@@ -47,7 +47,7 @@ class Generator(nn.Module):
         out_channels = 64
 
         model = [
-            nn.ReflectionPad2d(channels),
+            nn.ReflectionPad2d(3),
             nn.Conv2d(channels, out_channels, kernel_size = 7),
             nn.InstanceNorm2d(out_channels),
             nn.ReLU(inplace = True),
@@ -92,7 +92,7 @@ class Generator(nn.Module):
             in_channels = out_channels
 
         model += [
-            nn.ReflectionPad2d(channels),
+            nn.ReflectionPad2d(3),
             nn.Conv2d(
                 in_channels = out_channels,
                 out_channels = channels,
