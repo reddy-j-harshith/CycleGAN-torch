@@ -84,14 +84,14 @@ train_loader = DataLoader(
     ImageDataset(root = file_path, mode = hyper.dataset_train_mode, transforms_ = transforms_, unaligned = True),
     batch_size = hyper.batch_size,
     shuffle = True,
-    num_workers = 2,
+    num_workers = 0,
 )
 
 val_loader = DataLoader(
     ImageDataset(root = file_path, mode = hyper.dataset_test_mode, transforms_ = transforms_, unaligned = True),
     batch_size = 16,
     shuffle = True,
-    num_workers = 2,
+    num_workers = 0,
 )
 
 def save_img_samples(batches_done):
