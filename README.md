@@ -1,1 +1,1 @@
-# CycleGAN-torch
+# GANodhayam
