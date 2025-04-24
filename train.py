@@ -43,8 +43,8 @@ hyper = Hyperparameters(
     channels = 3,
     sample_interval = 100,
     num_resi_blocks = 9,
-    lambda_cyc = 15.0,
-    lambda_id = 10.0
+    lambda_cyc = 10.0,
+    lambda_id = 5.0
 )
 
 # file_path = "./datasets/summer2winter"
