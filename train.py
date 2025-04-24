@@ -5,6 +5,7 @@ import datetime
 import tqdm
 import json
 import os
+import sys
 
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
@@ -374,6 +375,17 @@ def train(
 
         # Save logs at the end of each epoch
         save_json_logs(json_path, training_logs)
+
+if len(sys.argv) > 1:
+    start_epoch = int(sys.argv[1])
+    hyper.epoch = start_epoch
+
+    if start_epoch > 1:
+        checkpoint_dir = f"./checkpoints/epoch{start_epoch - 1}"
+        Gen_AB.load_state_dict(torch.load(f"{checkpoint_dir}/Gen_AB_epoch_{start_epoch - 1}.pth"))
+        Gen_BA.load_state_dict(torch.load(f"{checkpoint_dir}/Gen_BA_epoch_{start_epoch - 1}.pth"))
+        Disc_A.load_state_dict(torch.load(f"{checkpoint_dir}/Disc_A_epoch_{start_epoch - 1}.pth"))
+        Disc_B.load_state_dict(torch.load(f"{checkpoint_dir}/Disc_B_epoch_{start_epoch - 1}.pth"))
 
 if __name__ == '__main__':
     train(
