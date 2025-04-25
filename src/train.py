@@ -47,9 +47,7 @@ hyper = Hyperparameters(
     lambda_id = 5.0
 )
 
-# file_path = "./datasets/summer2winter"
-
-file_path = "./datasets/summer2winter"
+file_path = "../datasets/summer2winter"
 
 print(file_path)
 
@@ -114,7 +112,7 @@ def save_img_samples(batches_done):
 
     image_grid = torch.cat((real_A, fake_B, real_B, fake_A), 1)
 
-    output_dir = "./output_images"
+    output_dir = "../output_images"
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, f"{batches_done}.png")
 
@@ -230,7 +228,7 @@ def train(
     sample_interval: int,
 ):
     prev_time = time.time()
-    json_path = "./checkpoints/training_logs.json"
+    json_path = "../checkpoints/training_logs.json"
     training_logs = load_json_logs(json_path)  # Load existing logs or initialize empty list
 
     for epoch in range(hyper.epoch, n_epochs):
@@ -362,7 +360,7 @@ def train(
             if batches_done % sample_interval == 0:
                 save_img_samples(batches_done)
    
-        checkpoint_dir = f"./checkpoints/epoch{epoch}"
+        checkpoint_dir = f"../checkpoints/epoch{epoch}"
         os.makedirs(checkpoint_dir, exist_ok=True)
         torch.save(Gen_AB.state_dict(), f"{checkpoint_dir}/Gen_AB_epoch_{epoch}.pth")
         torch.save(Gen_BA.state_dict(), f"{checkpoint_dir}/Gen_BA_epoch_{epoch}.pth")
@@ -381,7 +379,7 @@ if len(sys.argv) > 1:
     hyper.epoch = start_epoch
 
     if start_epoch > 1:
-        checkpoint_dir = f"./checkpoints/epoch{start_epoch - 1}"
+        checkpoint_dir = f"../checkpoints/epoch{start_epoch - 1}"
         Gen_AB.load_state_dict(torch.load(f"{checkpoint_dir}/Gen_AB_epoch_{start_epoch - 1}.pth"))
         Gen_BA.load_state_dict(torch.load(f"{checkpoint_dir}/Gen_BA_epoch_{start_epoch - 1}.pth"))
         Disc_A.load_state_dict(torch.load(f"{checkpoint_dir}/Disc_A_epoch_{start_epoch - 1}.pth"))
