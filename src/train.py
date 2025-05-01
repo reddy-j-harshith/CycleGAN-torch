@@ -2,7 +2,6 @@ import numpy as np
 import itertools
 import time
 import datetime
-import tqdm
 import json
 import os
 import sys
